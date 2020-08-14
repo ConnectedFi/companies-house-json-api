@@ -1,15 +1,13 @@
 require "chjsonapi/version"
-require 'curb'
-require 'json'
-require_relative 'chjsonapi/company'
+require "curb"
+require "json"
+require_relative "chjsonapi/company"
 
 # Base class for the CH Json Api
 # Can be used to make direct API calls to Companies House domain
 # The extended classes should implement specific methods to interface with api_call by providing the appropriate
 # URL handles, querystrings and request types
 class ChJsonApi
-
-
 
   #Call this before using any other method
   def self.init(key)
@@ -18,26 +16,26 @@ class ChJsonApi
     elsif key.is_a? String
       @key = [key]
     else
-      raise 'Invalid Key Type. String or Array of Strings accepted only.'
+      raise "Invalid Key Type. String or Array of Strings accepted only."
     end
+
+    @key.delete_if(&:empty?)
 
     @index = 0
     @tries = 0
     true
   end
 
-
   #Calls the Companies House API at the service specified by handler and with the optional parameters provided in query
   def self.api_call(handler, query)
-
-    raise 'Uninitialised API. Call ChJsonApi.init(key) with your Companies House API key before running any requests' if !@key || @key.empty?
+    raise "Uninitialised API. Call ChJsonApi.init(key) with your Companies House API key before running any requests" if !@key || @key.empty?
 
     query = normalise_query(query)
 
     result = execute_call(handler, query)
 
+    raise StandardError.new "Invalid Response" unless result.response_code < 202
     return extract_response(result.body_str)
-
   end
 
   def self.execute_call(handler, query)
@@ -45,7 +43,7 @@ class ChJsonApi
 
     @result.url = "https://api.companieshouse.gov.uk/#{handler}#{query}"
 
-    @result.username        = "#{choose_key}:"
+    @result.username = "#{choose_key}:"
     @result.http_auth_types = :basic
 
     @result.perform
@@ -72,33 +70,32 @@ class ChJsonApi
 
   def self.extract_response(response)
     return {} if response.empty?
-    json       = JSON.parse(response)
+    json = JSON.parse(response)
 
-    return json unless json['errors']
+    return json unless json["errors"]
 
-    raise json['errors'][0].map { |key, value| "#{key}=>#{value}" }.join(' ')
-
+    raise json["errors"][0].map { |key, value| "#{key}=>#{value}" }.join(" ")
   end
 
   #TODO accept a key => value hash
   def self.normalise_query(query)
     if !query
-      query = ''
+      query = ""
     elsif query.kind_of? Array
-      query = "?#{query.join '&'}"
+      query = "?#{query.join "&"}"
     elsif !query.kind_of? String
       raise 'Query must be a string or an array with each element being a "key=value" string'
     end
     query
   end
 
-
   private
+
   def self.choose_key
     if @key.length > 0
       @key[@index % @key.count]
     else
-      raise 'No valid keys!'
+      raise "No valid keys!"
     end
   end
 
@@ -123,7 +120,7 @@ class ChJsonApi
       @tries += 1
       return true
     else
-      raise RuntimeError.new({message: 'Unauthorized. Please check your API keys.', request: result})
+      raise RuntimeError.new({ message: "Unauthorized. Please check your API keys.", request: result })
     end
   end
 
@@ -135,9 +132,8 @@ class ChJsonApi
   def self.handle_too_many_requests(result)
     #Too Many Requests, just switch to next key
     unless try_another_key
-      raise RuntimeError.new({message: 'Too Many Requests', request: result})
+      raise RuntimeError.new({ message: "Too Many Requests", request: result })
     end
     true
   end
-
 end
